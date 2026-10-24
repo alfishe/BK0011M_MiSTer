@@ -119,8 +119,9 @@ wire  [1:0] buttons;
 wire        forced_scandoubler;
 wire [31:0] status;
 
-// image slots: 0 the SMK hard disk, 1-4 the floppy drives A-D (Main
-// auto-mounts boot0.vhd..boot3.vhd: the hard disk and drives A-C)
+// image slots: 0 the hard disk, 1-4 the floppy drives A-D (C and D only
+// in BK0010 mode: the BK0011M has two, C: and up are the hard disk; Main
+// auto-mounts boot0.vhd..boot3.vhd)
 localparam DRIVES = 4;
 localparam HDD    = 0;
 localparam FDD0   = 1;
@@ -156,8 +157,8 @@ localparam CONF_STR =
 	"F,BIN;",
 	"D2S1,DSKIMGBKD,Mount FDD A;",
 	"D2S2,DSKIMGBKD,Mount FDD B;",
-	"D2S3,DSKIMGBKD,Mount FDD C;",
-	"D2S4,DSKIMGBKD,Mount FDD D;",
+	"H1D2S3,DSKIMGBKD,Mount FDD C;",
+	"H1D2S4,DSKIMGBKD,Mount FDD D;",
 	"H0D2S0,HDIHDSIMG,Mount HDD (SMK512);",
 	"-;",
 	"O3,Monochrome,No,Yes;",
@@ -174,6 +175,7 @@ localparam CONF_STR =
 	"-;",
 	"O6,Disk controller,Enable,Disable;",
 	"H0O9,SMK512,No,Yes;",
+	"H0OI,Samara HDD,No,Yes;",
 	"H1O9,A16M,No,Yes;",
 	"OH,FDD write protect,No,Yes;",
 	"-;",
@@ -325,6 +327,8 @@ wire        ram_ack;
 wire  [1:0] screen_write;
 reg         bk0010     = 1'bZ;
 reg         disk_rom   = 1'bZ;
+// the Samara HDD board: standard KNGMD with its own disk ROM and an IDE controller
+wire        samara     = disk_rom & ~bk0010 & status[18] & ~status[9];
 wire  [7:0] start_addr;
 wire [15:0] ext_mode;
 reg         cold_start = 1;
@@ -662,8 +666,8 @@ fdd4 #(.CLK_HZ(96000000)) fdd
 
 
 //////////////////////////   HARD DISK   //////////////////////////////
-// The SMK512's IDE controller at 177740-177757, in BK0011M mode with the
-// SMK512 enabled.
+// The SMK512's IDE controller at 177740-177757 (SMK512 option) or the
+// Samara one at 177620-177657, in BK0011M mode.
 wire [15:0] ide_data;
 wire        ide_ack;
 wire        hdd_active;
@@ -672,7 +676,8 @@ smk_ide hdd
 (
 	.clk_sys(clk_sys),
 	.reset(cpu_dclo),
-	.enable(disk_rom & status[9] & ~bk0010),
+	.enable(disk_rom & ~bk0010 & (status[9] | samara)),
+	.samara(samara),
 
 	.bus_din(bus_din),
 	.bus_dout(ide_data),

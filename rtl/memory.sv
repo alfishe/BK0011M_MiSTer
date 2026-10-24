@@ -42,6 +42,7 @@ module memory
 	input         bk0010,
 	input         bk0010_stub,
 	input         disk_rom,
+	input         samara,
 	output  [7:0] start_addr,
 	input         sysreg_sel,
 	input  [15:0] ext_mode,
@@ -117,6 +118,7 @@ sdram ram
 `define ROM_P10    25'HE0000 // BASIC11
 `define ROM_P11    25'HE4000 // BASIC11 + BIOS11Ext
 `define ROM_P12    25'HE8000 // (empty)
+`define SAMARA_ROM 25'HEA000 // Samara HDD disk ROM (326 with the HDD driver); bit 13 set as the 160000 window ORs addr[13:0]
 `define ROM_P13    25'HEC000 // Debugger (13;1C 100000G)
 `define BIOS11     25'HF0000 //
 `define DISKSTD    25'HF2000 // BK0011M disk ROM (326)
@@ -458,7 +460,7 @@ wire [15:0] addr = mem_copy ? mem_copy_addr[15:0] : bus_addr;
 wire [24:0] map11s = ((addr[15:14] == 2'b00)  ? `RAM_P00 :
 						    (addr[15:14] == 2'b01)  ? page2addr(page_reg[14:12])     :
 						    (addr[15:13] == 3'b110) ? `BIOS11  :
-						    (addr[15:13] == 3'b111) ? (disk_rom ? `DISKSTD : `MSTD_ROM) :
+						    (addr[15:13] == 3'b111) ? (samara ? `SAMARA_ROM : disk_rom ? `DISKSTD : `MSTD_ROM) :
 						    (page_reg  & 16'b11011) ? romp1    :
                                                 page2addr(page_reg[10:8])) | addr[13:0];
 wire [24:0] map11e = (addr[15:12] == 4'b1111)  ? (smk512_7 | addr[11:0]) :
