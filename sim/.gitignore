@@ -1,0 +1,9 @@
+obj_dir/
+*.ppm
+*.png
+bios.hex
+bios_orig.hex
+vm1_plm_sim.v
+out*/
+build.log
+build_id.v
