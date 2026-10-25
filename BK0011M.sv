@@ -131,8 +131,7 @@ wire        forced_scandoubler;
 wire [31:0] status;
 
 // image slots: 0 the hard disk, 1-4 the floppy drives A-D (C and D only
-// in BK0010 mode: the BK0011M has two, C: and up are the hard disk; Main
-// auto-mounts boot0.vhd..boot3.vhd)
+// with the standard controller; Main auto-mounts boot0.vhd..boot3.vhd)
 localparam DRIVES = 4;
 localparam HDD    = 0;
 localparam FDD0   = 1;
@@ -672,8 +671,8 @@ fdd4 #(.CLK_HZ(96000000)) fdd
 
 
 //////////////////////////   HARD DISK   //////////////////////////////
-// The SMK512's IDE controller at 177740-177757 (SMK512 option) or the
-// Samara one at 177620-177657, in BK0011M mode.
+// The SMK512's IDE controller at 177740-177757 or the Samara one at
+// 177620-177657.
 wire [15:0] ide_data;
 wire        ide_ack;
 wire        hdd_active;
