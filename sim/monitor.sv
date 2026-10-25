@@ -112,4 +112,21 @@ always @(posedge sim_top.emu.clk_sys) begin
    if(ide_on && sim_top.emu.hdd.sd_wr && !old_hwr) $display("%0d IDE write lba %0d", cycles, sim_top.emu.hdd.sd_lba);
 end
 
+// +portmon: writes to 177714 (Covox / AY port) and their count
+reg port_on = 0;
+initial port_on = $test$plusargs("portmon");
+integer port_lines = 0, port_writes = 0;
+reg old_wack = 0;
+always @(posedge sim_top.emu.clk_sys) begin
+   old_wack <= sim_top.emu.port_write;
+   if(port_on && sim_top.emu.port_write && !old_wack) begin
+      port_writes = port_writes + 1;
+      if(port_lines < MAX_LINES) begin
+         $display("%0d PORT W %o = %o wtbt=%b", cycles, sim_top.emu.bus_addr, sim_top.emu.bus_din, sim_top.emu.bus_wtbt);
+         port_lines = port_lines + 1;
+      end
+      if(port_writes % 10000 == 0) $display("%0d PORT writes so far %0d", cycles, port_writes);
+   end
+end
+
 endmodule
