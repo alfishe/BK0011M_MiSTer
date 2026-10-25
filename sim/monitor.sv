@@ -13,9 +13,11 @@ integer lines = 0, fdd_lines = 0, ide_lines = 0;
 integer cycles = 0;
 reg bus_on = 0, fdd_on = 0, ide_on = 0, trap_on = 0, fdd_wr_on = 0;   // +fddwr: every data register write
 integer bus_from = 0;   // +busfrom=N: start the bus trace at clock N
+integer bus_min = 0;    // +busmin=OCT: only addresses from here
 initial begin
    bus_on  = $test$plusargs("busmon");
    if(!$value$plusargs("busfrom=%d", bus_from)) bus_from = 0;
+   if(!$value$plusargs("busmin=%o", bus_min)) bus_min = 0;
    fdd_wr_on = $test$plusargs("fddwr");
    fdd_on  = $test$plusargs("fddmon") || fdd_wr_on;
    ide_on  = $test$plusargs("idemon");
@@ -70,7 +72,7 @@ reg old_ack = 0;
 always @(posedge sim_top.emu.clk_sys) begin
    cycles = cycles + 1;
    old_ack <= sim_top.emu.cpu_ack;
-   if(bus_on && lines < MAX_LINES && cycles >= bus_from && sim_top.emu.cpu_ack && !old_ack) begin
+   if(bus_on && lines < MAX_LINES && cycles >= bus_from && sim_top.emu.bus_addr >= bus_min && sim_top.emu.cpu_ack && !old_ack) begin
       $display("%0d BUS %s %o = %o", cycles, sim_top.emu.bus_we ? "W" : "R", sim_top.emu.bus_addr,
                sim_top.emu.bus_we ? sim_top.emu.bus_din : sim_top.emu.cpu_din);
       lines = lines + 1;
