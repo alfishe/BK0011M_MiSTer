@@ -43,6 +43,7 @@ module memory
 	input         bk0010_stub,
 	input         disk_rom,
 	input         samara,
+	input         a16m,
 	output  [7:0] start_addr,
 	input         sysreg_sel,
 	input  [15:0] ext_mode,
@@ -400,11 +401,11 @@ always @(ext_mode, bk0010) begin
 end
 
 assign start_addr = (ext_rom && cold_start && mode_start) ? cold_addr  :
-                       (ext_rom && mode_start && !bk0010) ? cold_addr  : // Every start is cold for SMK
+                       (ext_rom && mode_start && !a16m)   ? cold_addr  : // Every start is cold for SMK
                                                   bk0010  ? 8'b10000000: // Standard BK0010
                                                             8'b11000000; // Standard BK0011M
 
-wire [7:0] cold_addr = bk0010 ? start_a16m : start_smk512;
+wire [7:0] cold_addr = a16m ? start_a16m : start_smk512;
 wire       ext_rom   = disk_rom && cold_addr && !bk0010_stub && extension;
 
 reg [7:0] start_a16m   = 8'hE9;
@@ -463,22 +464,26 @@ wire [24:0] map11s = ((addr[15:14] == 2'b00)  ? `RAM_P00 :
 						    (addr[15:13] == 3'b111) ? (samara ? `SAMARA_ROM : disk_rom ? `DISKSTD : `MSTD_ROM) :
 						    (page_reg  & 16'b11011) ? romp1    :
                                                 page2addr(page_reg[10:8])) | addr[13:0];
-wire [24:0] map11e = (addr[15:12] == 4'b1111)  ? (smk512_7 | addr[11:0]) :
-                      smk512_page[addr[14:13]] ? (smk512_page[addr[14:13]] | addr[12:0]) : 25'H0;
-wire [24:0] map11  = (addr[15] && ext_rom && map11e) ? map11e : map11s;
-
+// AltPro controller window 100000-177777 (0 = standard map)
 wire        a16m_7 = (mem_copy ? mem_copy_we : bus_we) ? a16m_7wr : a16m_7en;
-wire [24:0] map10de   = ((addr[15:12] == 4'b1111) && !a16m_7) ? `NOMEM : a16m_page[addr[14:13]];
+wire [24:0] mapse  = (addr[15:12] == 4'b1111)  ? (smk512_7 | addr[11:0]) :
+                      smk512_page[addr[14:13]] ? (smk512_page[addr[14:13]] | addr[12:0]) : 25'H0;
+wire [24:0] mapae  = ((addr[15:12] == 4'b1111) && !a16m_7) ? `NOMEM :
+                      a16m_page[addr[14:13]]   ? (a16m_page[addr[14:13]] | addr[12:0]) : 25'H0;
+wire [24:0] mape   = a16m ? mapae : mapse;
+
+wire [24:0] map11  = (addr[15] && ext_rom && mape) ? mape : map11s;
+
 wire [24:0] map10ds   = (addr[15:13] == 4'b101) ? `RAM_P02 : // two different pages because not aligned to 8kb
                         (addr[15:13] == 4'b110) ? `RAM_P03 : // ---/---
                         (addr[15:13] == 4'b111) ? `DISK10  : 25'H0;
-wire [24:0] map10d    = ext_rom ? map10de : map10ds;
+wire [24:0] map10d    = ext_rom ? mape : map10ds;
 wire [24:0] map10s[8] = '{`RAM_P00, `RAM_P00+25'H2000, `RAM_P05, `RAM_P05+25'H2000, `BIOS10, `BASIC10, `BASIC10+25'H2000, `BASIC10+25'H4000};
 wire [24:0] map10     = ((addr[15] && disk_rom && map10d && !bk0010_stub) ? map10d : map10s[addr[15:13]]) | addr[12:0];
 
 wire [24:0] vaddr = bk0010 ? map10 : map11;
 wire [24:0] ram_addr = (mem_copy && !mem_copy_virt) ? mem_copy_addr : vaddr;
-wire        ro = (vaddr >= `ROM_START) || (ext_rom && (addr[15:12] == 4'b1000) && (bk0010 ? a16m_0ro : smk512_0ro));
+wire        ro = (vaddr >= `ROM_START) || (ext_rom && (addr[15:12] == 4'b1000) && (a16m ? a16m_0ro : smk512_0ro));
 wire        copy_we = mem_copy_we && (!mem_copy_virt || !ro);
 
 wire [15:0] top_addr = ((ext_rom && !ext_mode[2]) || (disk_rom && !ext_rom)) ? 16'o177000 : 16'o177600;

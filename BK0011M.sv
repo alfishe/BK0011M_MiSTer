@@ -45,6 +45,17 @@ assign HDMI_BLACKOUT = 0;
 assign HDMI_BOB_DEINT = 0;
 
 wire [1:0] ar = status[14:13];
+
+// Disk controller: standard KNGMD (4 drives), A16M or SMK512 (AltPro, 2 drives),
+// standard KNGMD + Samara HDD board (2 drives), or none
+wire  [2:0] disk_ctrl  = status[20:18];
+wire        std_fdd    = (disk_ctrl == 3'd0);
+wire        a16m       = (disk_ctrl == 3'd1);
+wire        smk512     = (disk_ctrl == 3'd2);
+wire        samara     = (disk_ctrl == 3'd3);
+wire        no_disk    = disk_ctrl[2];
+wire        extension  = a16m | smk512;
+
 video_freak video_freak
 (
 	.*,
@@ -157,9 +168,9 @@ localparam CONF_STR =
 	"F,BIN;",
 	"D2S1,DSKIMGBKD,Mount FDD A;",
 	"D2S2,DSKIMGBKD,Mount FDD B;",
-	"H1D2S3,DSKIMGBKD,Mount FDD C;",
-	"H1D2S4,DSKIMGBKD,Mount FDD D;",
-	"H0D2S0,HDIHDSIMG,Mount HDD (SMK512);",
+	"H3S3,DSKIMGBKD,Mount FDD C;",
+	"H3S4,DSKIMGBKD,Mount FDD D;",
+	"H4S0,HDIHDSIMG,Mount HDD;",
 	"-;",
 	"O3,Monochrome,No,Yes;",
 	"ODE,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
@@ -173,10 +184,7 @@ localparam CONF_STR =
 	"H0O1,CPU Speed,4MHz,8MHz;",
 	"H1O1,CPU Speed,3MHz,6MHz;",
 	"-;",
-	"O6,Disk controller,Enable,Disable;",
-	"H0O9,SMK512,No,Yes;",
-	"H0OI,Samara HDD,No,Yes;",
-	"H1O9,A16M,No,Yes;",
+	"OIK,Disk controller,Standard,A16M,SMK512,Samara,None;",
 	"OH,FDD write protect,No,Yes;",
 	"-;",
 	"R2,Reset;",
@@ -203,7 +211,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1), .VDNUM(SLOTS)) hps_io
 	.forced_scandoubler(forced_scandoubler),
 
 	.status(status),
-	.status_menumask({status[6], ~status[5], status[5]}), 
+	.status_menumask({~(smk512 | samara), ~std_fdd, no_disk, ~status[5], status[5]}), 
 
 	.gamma_bus(gamma_bus),
 
@@ -327,8 +335,6 @@ wire        ram_ack;
 wire  [1:0] screen_write;
 reg         bk0010     = 1'bZ;
 reg         disk_rom   = 1'bZ;
-// the Samara HDD board: standard KNGMD with its own disk ROM and an IDE controller
-wire        samara     = disk_rom & ~bk0010 & status[18] & ~status[9];
 wire  [7:0] start_addr;
 wire [15:0] ext_mode;
 reg         cold_start = 1;
@@ -343,7 +349,7 @@ memory memory
 
 	.init(!plock),
 	.sysreg_sel(sysreg_sel),
-	.extension(status[9]),
+	.extension(extension),
 
 	.bus_dout(ram_data),
 	.bus_ack(ram_ack),
@@ -371,7 +377,7 @@ always @(posedge clk_sys) begin
 	end else if(cpu_dclo) begin 
 		if(ce_12mp && reset_time) reset_time <= reset_time - 1;
 		bk0010     <= status[5];
-		disk_rom   <= ~status[6];
+		disk_rom   <= ~no_disk;
 		cold_start <= (old_bk0010 != bk0010) | (old_disk_rom != disk_rom) | !reset_time;
 		mode_start <= 1;
 	end
@@ -596,7 +602,7 @@ wire        fdd_tr0;
 wire        fdd_ind;
 
 // SMK512 / A16M: bit 2 of the mode register hides the controller from reads
-wire        fdc_rd_block = status[9] & ext_mode[2];
+wire        fdc_rd_block = extension & ext_mode[2];
 
 vp1_128 fdc
 (
@@ -676,7 +682,7 @@ smk_ide hdd
 (
 	.clk_sys(clk_sys),
 	.reset(cpu_dclo),
-	.enable(disk_rom & ~bk0010 & (status[9] | samara)),
+	.enable(disk_rom & (smk512 | samara)),
 	.samara(samara),
 
 	.bus_din(bus_din),
